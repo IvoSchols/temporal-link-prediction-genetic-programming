@@ -11,3 +11,11 @@ The structure of the directories is as follows:
 - environment.yml: Can be used to create Python environment with Conda.
 - install.sh: Install teexGraph.
 - spec-list.txt: Can be used to create exactly the same Python environment.
+
+
+## TODO for genetic programming:
+- [ ] Alter get_features_gp to save results before applying time_strategies
+- [ ] Create a loop in run_single.py after get_features_gp that tries different time_strategies
+    - [ ] Apply GP time_stategy to get_features_gp result (Singular!)
+    - [ ] Evaluate performance of function using get_performance.predict
+    - [ ] Keep track of fittest functions per dataset

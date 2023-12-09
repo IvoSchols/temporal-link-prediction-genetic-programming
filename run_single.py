@@ -52,7 +52,7 @@ if __name__ == '__main__':
     edgelist_path = f'data/{network:02}/+000/edgelist.pkl'
     
     print('Getting edgelist')
-    get_edgelist_gp(network, edgelist_path, t_min=pd.Timestamp(2001, 1, 10) if network == 16 else None)
+    get_edgelist(network, edgelist_path, t_min=pd.Timestamp(2001, 1, 10) if network == 16 else None)
 
 
     # Call rewire
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     verbose = True
 
     print('Getting features')
-    get_features_gp(f'data/{network:02}/samples.pkl')
+    get_features(f'data/{network:02}/samples.pkl')
 
     # Generate time strategies, using gp, and evaluate their performance. Keep the fittest
     clf = 'LogisticRegression'
@@ -93,7 +93,7 @@ if __name__ == '__main__':
 
 
     X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X, y, random_state=random_state)
-    logistic_regression_auc = get_performance_gp(X_train, y_train)
+    logistic_regression_auc = get_performance(X_train, y_train)
     fitness_function = make_fitness(function=logistic_regression_auc, greater_is_better=True)
 
     est_gp = SymbolicRegressor(population_size=5000,

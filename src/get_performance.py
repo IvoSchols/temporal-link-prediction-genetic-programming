@@ -1,3 +1,5 @@
+# Original: https://github.com/gerritjandebruin/temporal-link-prediction
+# GP Changes: Extracted core of predict function to logistic_regression_auc
 import itertools, os, random
 
 import numpy as np
@@ -15,6 +17,18 @@ from tqdm.auto import tqdm
 from .progress_parallel import ProgressParallel, delayed
 
 app = typer.Typer()
+
+
+def logistic_regression_auc(X, y):
+    pipe = sklearn.pipeline.make_pipeline(
+        sklearn.preprocessing.StandardScaler(),
+        sklearn.linear_model.LogisticRegression(max_iter=10000, n_jobs=-1, 
+                                                random_state=42)
+    )
+    pipe.fit(X, y)
+    auc = sklearn.metrics.roc_auc_score(
+        y_true=y, y_score=pipe.predict_proba(X)[:,1])
+    return auc
 
 def predict(directory: str, 
             feature_set='II-A',

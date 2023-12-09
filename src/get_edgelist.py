@@ -1,3 +1,6 @@
+# Original: https://github.com/gerritjandebruin/temporal-link-prediction
+# GP Changes: Edited edgelist_path in single()
+
 import os
 import tarfile
 import zipfile
@@ -11,7 +14,6 @@ import typer
 from .logger import logger
 
 app = typer.Typer()
-
 
 def download(url: str, dst: str, verbose=True):
     """
@@ -339,7 +341,7 @@ def single(index_network: int,
     }
 
     # Check if file already exists
-    edgelist_path = f'data/{index_network:02}/edgelist.pkl'
+    edgelist_path = f'data/{index_network:02}/+000/edgelist.pkl'
     if os.path.isfile(edgelist_path):
         logger.debug(f'{edgelist_path} already exists')
         return

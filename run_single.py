@@ -35,7 +35,8 @@ def get_samples(network, nswap_perc, cutoff=2, sample_size=10_000, seed=42, verb
     src.get_samples.single(network, nswap_perc, cutoff, sample_size, seed, verbose)
 
 def get_features(path, n_jobs=-1, verbose=True):
-    src.get_features.single(path, n_jobs, verbose)
+    # src.get_features.single(path, n_jobs, verbose)
+    src.get_features_gp.single(path, n_jobs, verbose)
 
 def get_performance(network, nswap_perc=None, clf='LogisticRegression', feature_set='II-A', random_state=42, n_jobs=-1):
     return src.get_performance.single(network, nswap_perc, clf, feature_set, random_state, n_jobs)
@@ -45,7 +46,7 @@ def get_performance(X,y):
 
 if __name__ == '__main__':
     # Set your desired parameters
-    network = 1
+    network = 21
 
     nswap_perc = 0 # What is this?
     # Call get_edgelist
@@ -68,44 +69,30 @@ if __name__ == '__main__':
     verbose = True
 
     print('Getting features')
-    get_features(f'data/{network:02}/samples.pkl')
+    get_features(f'data/{network:02}/+000/')
 
-    # Generate time strategies, using gp, and evaluate their performance. Keep the fittest
-    clf = 'LogisticRegression'
-    feature_set = 'II-A'
-    check = lambda x: not x.startswith('na') # DEPENDS ON FEATURE SET
-    random_state = 42
+    # # Generate time strategies, using gp, and evaluate their performance. Keep the fittest
+    # clf = 'LogisticRegression'
+    # feature_set = 'II-A'
+    # check = lambda x: not x.startswith('na') # DEPENDS ON FEATURE SET
+    # random_state = 42
 
-    # Read in features of network
-    directory = f'data/{network:02}/{nswap_perc:+04.0f}'
-    assert os.path.isdir(directory), f'missing {directory=}'
-    feature_dir = os.path.join(directory, 'features')
-    if not os.path.isdir(feature_dir):
-       exit('No features found. Please run get_features first.') 
-    samples_filepath = os.path.join(directory, 'samples.pkl')
-    assert os.path.isfile(samples_filepath), f'missing {samples_filepath=}'
+    # # Read in features of network
+    # print('Reading in features')
+    # directory = f'data/{network:02}/{nswap_perc:+04.0f}'
+    # assert os.path.isdir(directory), f'missing {directory=}'
+    # feature_dir = os.path.join(directory, 'features')
+    # if not os.path.isdir(feature_dir):
+    #    exit('No features found. Please run get_features first.') 
+    # samples_filepath = os.path.join(directory, 'samples.pkl')
+    # assert os.path.isfile(samples_filepath), f'missing {samples_filepath=}'
   
-    X = pd.DataFrame({
-        f.name: np.load(f.path) 
-        for f in os.scandir(feature_dir) if check(f.name)
-    })
-    y = pd.read_pickle(samples_filepath).astype(int).values
+    # X = pd.DataFrame({
+    #     f.name: np.load(f.path) 
+    #     for f in os.scandir(feature_dir) if check(f.name)
+    # })
+    # y = pd.read_pickle(samples_filepath).astype(int).values
 
+    print('Evaluating time strategies')
 
-    X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X, y, random_state=random_state)
-    logistic_regression_auc = get_performance(X_train, y_train)
-    fitness_function = make_fitness(function=logistic_regression_auc, greater_is_better=True)
-
-    est_gp = SymbolicRegressor(population_size=5000,
-                                generations=20,
-                                p_crossover=0.7, p_subtree_mutation=0.1,
-                                p_hoist_mutation=0.05, p_point_mutation=0.1,
-                                max_samples=0.9, verbose=1,
-                                parsimony_coefficient=0.01, random_state=42,
-                                metric=fitness_function)
-
-    est_gp.fit(X_train, y_train)
-
-    # Print solution
-    print(est_gp._program)
     

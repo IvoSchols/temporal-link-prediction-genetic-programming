@@ -1,5 +1,3 @@
-# Original: https://github.com/gerritjandebruin/temporal-link-prediction
-# GP Changes: Removed time strategy functions and their application in single()
 import collections
 import itertools
 import os
@@ -15,6 +13,8 @@ from .progress_parallel import ProgressParallel, delayed
 
 app = typer.Typer()
 
+# region STRATEGIES
+
 
 def _rescale(x: pd.Series, *, lower_bound: float = 0.2) -> pd.Series:
     """_rescale the provided array.
@@ -26,6 +26,25 @@ def _rescale(x: pd.Series, *, lower_bound: float = 0.2) -> pd.Series:
     lowest, highest = np.quantile(x, [0, 1])
     return lower_bound + (1-lower_bound)*(x-lowest)/(highest-lowest)
 
+
+def _exp_time(x: pd.Series) -> pd.Series:
+    """Apply y=3*exp(x) and normalize it between (0,1)."""
+    return np.exp(3*x) / np.exp(3)
+
+
+def lin(x: pd.Series, lower_bound=.2):
+    return _rescale(_rescale(x.astype(int)), lower_bound=lower_bound)
+
+
+def exp(x: pd.Series, lower_bound=.2):
+    return _rescale(_exp_time(_rescale(x.astype(int))), lower_bound=lower_bound)
+
+
+def sqrt(x: pd.Series, lower_bound=.2):
+    return _rescale(np.sqrt(_rescale(x.astype(int))), lower_bound=lower_bound) #type: ignore
+
+
+TIME_STRATEGIES = {'lin': lin, 'exp': exp, 'sqrt': sqrt}
 
 AGGREGATION_STRATEGIES = {
     'q0': np.min,
@@ -46,6 +65,10 @@ NODEPAIR_STRATEGIES = {
     'max': max, 
     'min': min
 }
+# endregion
+
+# region FEATURES
+
 
 def aa(edgelist_mature, instances):
     graph_mature = nx.from_pandas_edgelist(edgelist_mature)
@@ -187,7 +210,7 @@ def pa_time_aware(edgelist_mature, instances, time_strategy,
 # endregion
 
 @app.command()
-def all(network: int = None, 
+def all(network: int = 21, 
         network_from: int = 1,
         network_to: int = 31,
         n_jobs: int = -1, 
@@ -195,8 +218,8 @@ def all(network: int = None,
     assert network is None or (network_from == 1 and network_to == 31) 
 
     # WRAPPER
-    def calculate_feature(feature_func, path, out_file, **kwargs):
-        features_dir = os.path.join(path, 'features')
+    def calculate_feature(feature_func, path_in, path_out, out_file, **kwargs):
+        features_dir = os.path.join(path_out, 'features')
         os.makedirs(features_dir, exist_ok=True)
         out_filepath = os.path.join(features_dir, out_file)
         if os.path.isfile(out_filepath):
@@ -204,13 +227,13 @@ def all(network: int = None,
 
         # logger.debug('Get edgelist')
         edgelist_mature = (
-            pd.read_pickle(os.path.join(path, 'edgelist.pkl'))
+            pd.read_pickle(os.path.join(path_in, 'edgelist.pkl'))
             .query("(phase == 'mature') & (source != target)")
         )
         # logger.debug('Get instances')
         instances = np.array(
             [i for i in pd.read_pickle(
-                os.path.join(path, 'samples.pkl')).index]
+                os.path.join(path_in, 'samples.pkl')).index]
         )
         # logger.debug('Get scores')
         scores = np.array(feature_func(edgelist_mature, instances, **kwargs))
@@ -224,101 +247,118 @@ def all(network: int = None,
                     if not network in [15, 17, 26, 27]]
     else:
         networks = [network]
-    paths = [
+    paths_in = [
+        f'data/{network:02}/+000/'
+        for network in networks
+    ]
+
+    paths_out = [
         f'data/{network:02}/{nswap_perc:+04.0f}/'
         for nswap_perc in np.arange(-100, 101, 20)
         for network in networks
     ]
 
     # aa
-    ProgressParallel(n_jobs=len(paths), total=len(paths), desc='aa')(
-        delayed(calculate_feature)(aa, path, 'aa.npy') for path in paths
+    ProgressParallel(n_jobs=len(paths_out), total=len(paths_out), desc='aa')(
+        delayed(calculate_feature)(aa, path_in, path_out, 'aa.npy') for path_out in paths_out for path_in in paths_in
     )
 
     # na
     if include_na:
-        total = (len(paths)*len(AGGREGATION_STRATEGIES) *
+        total = (len(paths_out)*len(TIME_STRATEGIES)*len(AGGREGATION_STRATEGIES) *
                 len(NODEPAIR_STRATEGIES))
         ProgressParallel(n_jobs=n_jobs, total=total, desc='na')(
             delayed(calculate_feature)(
                 feature_func=na,
-                path=path,
-                out_file=f'na_{agg_str}_{nodepair_str}.npy',
+                path_in=path_in,
+                path_out=path_out,
+                out_file=f'na_{time_str}_{agg_str}_{nodepair_str}.npy',
+                time_strategy=time_func,
                 aggregation_strategy=agg_func,
                 nodepair_strategy=nodepair_func
             )
+            for time_str, time_func in TIME_STRATEGIES.items()
             for agg_str, agg_func in AGGREGATION_STRATEGIES.items()
             for nodepair_str, nodepair_func in NODEPAIR_STRATEGIES.items()
-            for path in paths
+            for path_out in paths_out for path_in in paths_in
         )
 
     # sp
-    ProgressParallel(n_jobs=len(paths), total=len(paths), desc='sp')(
+    ProgressParallel(n_jobs=len(paths_out), total=len(paths_out), desc='sp')(
         delayed(calculate_feature)(
-            feature_func=sp, path=path, out_file='sp.npy')
-        for path in paths
+            feature_func=sp, path_in=path_in, path_out=path_out, out_file='sp.npy')
+        for path_out in paths_out for path_in in paths_in
     )
 
     # jc
-    ProgressParallel(n_jobs=len(paths), total=len(paths), desc='jc')(
+    ProgressParallel(n_jobs=len(paths_out), total=len(paths_out), desc='jc')(
         delayed(calculate_feature)(
-            feature_func=jc, path=path, out_file='jc.npy')
-        for path in paths
+            feature_func=jc, path_in=path_in, path_out=path_out, out_file='jc.npy')
+        for path_out in paths_out for path_in in paths_in
     )
 
     # cn
-    ProgressParallel(n_jobs=len(paths), total=len(paths), desc='cn')(
+    ProgressParallel(n_jobs=len(paths_out), total=len(paths_out), desc='cn')(
         delayed(calculate_feature)(
-            feature_func=cn, path=path, out_file='cn.npy')
-        for path in paths
+            feature_func=cn, path_in=path_in, path_out=path_out, out_file='cn.npy')
+        for path_out in paths_out for path_in in paths_in
     )
 
     # pa
-    ProgressParallel(n_jobs=len(paths), total=len(paths), desc='pa')(
+    ProgressParallel(n_jobs=len(paths_out), total=len(paths_out), desc='pa')(
         delayed(calculate_feature)(
-            feature_func=pa, path=path, out_file='pa.npy')
-        for path in paths
+            feature_func=pa, path_in=path_in, path_out=path_out, out_file='pa.npy')
+        for path_out in paths_out for path_in in paths_in
     )
 
     # aa_time_aware
-    total = len(paths)*len(AGGREGATION_STRATEGIES)
+    total = len(paths_out)*len(TIME_STRATEGIES)*len(AGGREGATION_STRATEGIES)
     ProgressParallel(n_jobs=n_jobs, total=total, desc='aa time-aware')(
         delayed(calculate_feature)(feature_func=aa_time_aware,
-                                   path=path,
-                                   out_file=f'aa_{agg_str}.npy',
+                                   path_in=path_in,
+                                   path_out=path_out,
+                                   out_file=f'aa_{time_str}_{agg_str}.npy',
+                                   time_strategy=time_func,
                                    aggregation_strategy=agg_func)
-        for path in paths
+        for path_out in paths_out for path_in in paths_in
+        for time_str, time_func in TIME_STRATEGIES.items()
         for agg_str, agg_func in AGGREGATION_STRATEGIES.items()
     )
 
     # cn_time_aware
-    total = len(paths)*len(AGGREGATION_STRATEGIES)
+    total = len(paths_out)*len(TIME_STRATEGIES)*len(AGGREGATION_STRATEGIES)
     ProgressParallel(n_jobs=n_jobs, total=total, desc='cn time-aware')(
         delayed(calculate_feature)(
             feature_func=cn_time_aware,
-            path=path,
-            out_file=f'cn_{agg_str}.npy',
+            path_in=path_in,
+            path_out=path_out,
+            out_file=f'cn_{time_str}_{agg_str}.npy',
+            time_strategy=time_func,
             aggregation_strategy=agg_func
         )
-        for path in paths
+        for path_out in paths_out for path_in in paths_in
+        for time_str, time_func in TIME_STRATEGIES.items()
         for agg_str, agg_func in AGGREGATION_STRATEGIES.items()
     )
 
     # jc_time_aware
-    total = len(paths)*len(AGGREGATION_STRATEGIES)
+    total = len(paths_out)*len(TIME_STRATEGIES)*len(AGGREGATION_STRATEGIES)
     ProgressParallel(n_jobs=n_jobs, total=total, desc='jc time-aware')(
         delayed(calculate_feature)(
             feature_func=jc_time_aware,
-            path=path,
-            out_file=f'jc_{agg_str}.npy',
+            path_in=path_in,
+            path_out=path_out,
+            out_file=f'jc_{time_str}_{agg_str}.npy',
+            time_strategy=time_func,
             aggregation_strategy=agg_func
         )
-        for path in paths
+        for path_out in paths_out for path_in in paths_in
+        for time_str, time_func in TIME_STRATEGIES.items()
         for agg_str, agg_func in AGGREGATION_STRATEGIES.items()
     )
 
     # pa_time_aware
-    total = len(paths)*len(AGGREGATION_STRATEGIES)
+    total = len(paths_out)*len(TIME_STRATEGIES)*len(AGGREGATION_STRATEGIES)
     ProgressParallel(
         n_jobs=n_jobs, 
         total=total, 
@@ -327,11 +367,14 @@ def all(network: int = None,
     )(
         delayed(calculate_feature)(
             feature_func=pa_time_aware,
-            path=path,
-            out_file=f'pa_{agg_str}.npy',
+            path_in=path_in,
+            path_out=path_out,
+            out_file=f'pa_{time_str}_{agg_str}.npy',
+            time_strategy=time_func,
             aggregation_strategy=agg_func
         )
-        for path in paths
+        for path_out in paths_out for path_in in paths_in
+        for time_str, time_func in TIME_STRATEGIES.items()
         for agg_str, agg_func in AGGREGATION_STRATEGIES.items()
     )
 
@@ -381,7 +424,8 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     )
 
     # NA
-    total = (len(AGGREGATION_STRATEGIES) *
+    total = (len(TIME_STRATEGIES) *
+             len(AGGREGATION_STRATEGIES) *
              len(NODEPAIR_STRATEGIES))
     ProgressParallel(use_tqdm=verbose,
                      total=total,
@@ -392,12 +436,14 @@ def single(path: str, n_jobs: int = -1, verbose=True):
             function=na,
             out_filepath=os.path.join(
                 features_dir,
-                f'na_{agg_str}_{nodepair_str}.pkl'
+                f'na_{time_str}_{agg_str}_{nodepair_str}.pkl'
             ),
             edgelist_mature=edgelist_mature, instances=instances,
+            time_strategy=time_func,
             aggregation_strategy=agg_func,
             nodepair_strategy=nodepair_func
         )
+        for time_str, time_func in TIME_STRATEGIES.items()
         for agg_str, agg_func in AGGREGATION_STRATEGIES.items()
         for nodepair_str, nodepair_func in NODEPAIR_STRATEGIES.items()
     )
@@ -407,7 +453,7 @@ def single(path: str, n_jobs: int = -1, verbose=True):
                         ('jc', jc_time_aware),
                         ('cn', cn_time_aware),
                         ('pa', pa_time_aware)]
-    total = len(AGGREGATION_STRATEGIES) * \
+    total = len(TIME_STRATEGIES)*len(AGGREGATION_STRATEGIES) * \
         len(time_aware_funcs)
     ProgressParallel(n_jobs=n_jobs if n_jobs < total else total,
                      total=total,
@@ -416,10 +462,11 @@ def single(path: str, n_jobs: int = -1, verbose=True):
                      use_tqdm=verbose)(
         delayed(calculate_feature)(
             func, os.path.join(
-                features_dir, f'{func_str}_{agg_str}.npy'),
+                features_dir, f'{func_str}_{time_str}_{agg_str}.npy'),
             edgelist_mature=edgelist_mature, instances=instances,
-            aggregation_strategy=agg_func
+            time_strategy=time_func, aggregation_strategy=agg_func
         )
+        for time_str, time_func in TIME_STRATEGIES.items()
         for agg_str, agg_func in AGGREGATION_STRATEGIES.items()
         for func_str, func in time_aware_funcs
     )

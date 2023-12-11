@@ -21,6 +21,50 @@ import sklearn.model_selection
 import sklearn.preprocessing
 import sklearn.pipeline
 
+##
+# Custom genetic programming functions
+##
+#
+
+##  Setup allowed primitives in the tree
+#
+pset = gp.PrimitiveSet("MAIN", 1)  # '1' is the number of input arguments for the function
+pset.addPrimitive(np.add, 2)
+pset.addPrimitive(np.subtract, 2)
+pset.addPrimitive(np.multiply, 2)
+pset.addPrimitive(np.divide, 2)
+pset.addPrimitive(np.sqrt, 1)
+pset.addPrimitive(np.exp, 1)
+pset.addPrimitive(np.log, 1)
+
+pset.addEphemeralConstant("rand100", functools.partial(random.randint, -100, 100))
+pset.renameArguments(ARG0='x')
+
+##  Setup the toolbox   
+creator.create("FitnessMax", base.Fitness, weights=(1.0,))  # We aim to maximize the fitness
+creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
+toolbox = base.Toolbox()
+
+
+toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
+toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
+toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+toolbox.register("compile", gp.compile, pset=pset)
+toolbox.register("select", tools.selTournament, tournsize=3)
+toolbox.register("mate", gp.cxOnePoint)
+toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
+toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
+
+toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
+toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
+
+
+
+
+
+
+
+
 app = typer.Typer()
 
 # region STRATEGIES
@@ -238,30 +282,10 @@ def single(path: str, n_jobs: int = -1, verbose=True):
                     ('jc', jc_time_aware),
                     ('cn', cn_time_aware),
                     ('pa', pa_time_aware)]
-    ##
-    # Custom genetic programming functions
-    ##
-    #
+
+
+    toolbox.register("evaluate", eval_auc, toolbox=toolbox, edgelist_mature=edgelist_mature, instances=instances, agg_strategies=AGGREGATION_STRATEGIES, time_aware_funcs=time_aware_funcs, y=y)
     
-    ##  Setup allowed primitives in the tree
-    #
-    pset = gp.PrimitiveSet("MAIN", 1)  # '1' is the number of input arguments for the function
-    pset.addPrimitive(np.add, 2)
-    pset.addPrimitive(np.subtract, 2)
-    pset.addPrimitive(np.multiply, 2)
-    pset.addPrimitive(np.divide, 2)
-    pset.addPrimitive(np.sqrt, 1)
-    pset.addPrimitive(np.exp, 1)
-    pset.addPrimitive(np.log, 1)
-
-    pset.addEphemeralConstant("rand100", functools.partial(random.randint, -100, 100))
-    pset.renameArguments(ARG0='x')
-
-    ##  Setup the toolbox   
-    creator.create("FitnessMax", base.Fitness, weights=(1.0,))  # We aim to maximize the fitness
-    creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
-    toolbox = base.Toolbox()
-
     # Enable multiprocessing for individuals
     # Initialize the multiprocessing pool with 30 workers
     core_count = 30
@@ -274,23 +298,6 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     edgelist_mature = edgelist_mature[['source', 'target', 'datetime']]
     y = pd.read_pickle(samples_file).astype(int).values
 
-
-
-
-    toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
-    toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
-    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-    toolbox.register("compile", gp.compile, pset=pset)
-    toolbox.register("evaluate", eval_auc, toolbox=toolbox, edgelist_mature=edgelist_mature, instances=instances, agg_strategies=AGGREGATION_STRATEGIES, time_aware_funcs=time_aware_funcs, y=y)
-    toolbox.register("select", tools.selTournament, tournsize=3)
-    toolbox.register("mate", gp.cxOnePoint)
-    toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
-    toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
-
-    toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
-    toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
-
-  
 
     random.seed(42)
     population_size = 90

@@ -169,14 +169,56 @@ def pa_time_aware(edgelist_mature, instances, time_strategy,
     return scores
 # endregion
 
+def calculate_feature(function, edgelist_mature, instances,
+                        **kwargs):
+    scores = function(edgelist_mature, instances, **kwargs)
+    return scores
+
+def time_func_helper(compiled_func, x):
+    return compiled_func(_rescale(x.astype(int)))
+
+
+# Evaluate the fitness of an individual. This is the function that will be
+def eval_auc(individual, toolbox, edgelist_mature, instances, agg_strategies, time_aware_funcs, y):      
+    # NA -> only interested in II-A so skip
+
+
+    # Time aware functions
+    compiled_time_func = toolbox.compile(expr=individual)
+    # Wrap time_func in _rescale(x.astype(int))
+    time_func = functools.partial(time_func_helper, compiled_time_func)
+    
+    # Store scores in array
+    X = {}
+
+    
+    for agg_str, agg_func in agg_strategies.items():
+        for func_str, func in time_aware_funcs:
+            feature = calculate_feature(
+                func, edgelist_mature=edgelist_mature, instances=instances,
+                time_strategy=time_func, aggregation_strategy=agg_func
+            )
+            X[f'{func_str}_{agg_str}'] = feature
+
+    X = pd.DataFrame(X).fillna(0)
+    X_train, X_test, y_train, y_test = (sklearn.model_selection.train_test_split(X, y, random_state=42))
+
+
+    pipe = sklearn.pipeline.make_pipeline(
+        sklearn.preprocessing.StandardScaler(),
+        sklearn.linear_model.LogisticRegression(max_iter=10000, random_state=42))
+    pipe.fit(X_train, y_train)   
+
+    auc = sklearn.metrics.roc_auc_score(
+        y_true=y_test, y_score=pipe.predict_proba(X_test)[:,1])
+
+    return (auc,)
+
 
 @app.command()
 def single(path: str, n_jobs: int = -1, verbose=True):
 
-    def calculate_feature(function, edgelist_mature, instances,
-                          **kwargs):
-        scores = function(edgelist_mature, instances, **kwargs)
-        return scores
+
 
     edgelist_file = os.path.join(path, 'edgelist.pkl')
     samples_file = os.path.join(path, 'samples.pkl')
@@ -233,52 +275,13 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     y = pd.read_pickle(samples_file).astype(int).values
 
 
-    def time_func_helper(compiled_func, x):
-        return compiled_func(_rescale(x.astype(int)))
 
-   
-    # Evaluate the fitness of an individual. This is the function that will be
-    def eval_auc(individual, agg_strategies, time_aware_funcs):      
-        # NA -> only interested in II-A so skip
-
-
-        # Time aware functions
-        compiled_time_func = toolbox.compile(expr=individual)
-        # Wrap time_func in _rescale(x.astype(int))
-        time_func = functools.partial(time_func_helper, compiled_time_func)
-        
-        # Store scores in array
-        X = {}
-
-        
-        for agg_str, agg_func in agg_strategies.items():
-            for func_str, func in time_aware_funcs:
-                feature = calculate_feature(
-                    func, edgelist_mature=edgelist_mature, instances=instances,
-                    time_strategy=time_func, aggregation_strategy=agg_func
-                )
-                X[f'{func_str}_{agg_str}'] = feature
-
-        X = pd.DataFrame(X).fillna(0)
-        X_train, X_test, y_train, y_test = (sklearn.model_selection.train_test_split(X, y, random_state=42))
-
-   
-        pipe = sklearn.pipeline.make_pipeline(
-            sklearn.preprocessing.StandardScaler(),
-            sklearn.linear_model.LogisticRegression(max_iter=10000, n_jobs=n_jobs, 
-                                                    random_state=42))
-        pipe.fit(X_train, y_train)   
-  
-        auc = sklearn.metrics.roc_auc_score(
-            y_true=y_test, y_score=pipe.predict_proba(X_test)[:,1])
-
-        return (auc,)
 
     toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
     toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("compile", gp.compile, pset=pset)
-    toolbox.register("evaluate", eval_auc, agg_strategies=AGGREGATION_STRATEGIES, time_aware_funcs=time_aware_funcs)
+    toolbox.register("evaluate", eval_auc, toolbox=toolbox, edgelist_mature=edgelist_mature, instances=instances, agg_strategies=AGGREGATION_STRATEGIES, time_aware_funcs=time_aware_funcs, y=y)
     toolbox.register("select", tools.selTournament, tournsize=3)
     toolbox.register("mate", gp.cxOnePoint)
     toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)

@@ -131,7 +131,7 @@ NODEPAIR_STRATEGIES = {
 
 def aa_time_aware(edgelist_mature, instances,
                   time_strategy, aggregation_strategy):
-    df = edgelist_mature.assign(datetime=lambda x: _rescale(time_strategy(x['datetime'], 0.2)))
+    df = edgelist_mature.assign(datetime=lambda x: _rescale(time_strategy(x['datetime']), 0.2))
 
     G = nx.from_pandas_edgelist(df, edge_attr=True, create_using=nx.MultiGraph)
     scores = list()
@@ -148,7 +148,7 @@ def aa_time_aware(edgelist_mature, instances,
 
 def na(edgelist_mature, instances, time_strategy, aggregation_strategy,
        nodepair_strategy):
-    df = edgelist_mature.assign(datetime=lambda x: _rescale(time_strategy(x['datetime'],0.2)))
+    df = edgelist_mature.assign(datetime=lambda x: _rescale(time_strategy(x['datetime']),0.2))
 
     G = nx.from_pandas_edgelist(df, edge_attr=True, create_using=nx.MultiGraph)
     scores = list()

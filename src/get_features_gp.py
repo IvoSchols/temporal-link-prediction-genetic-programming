@@ -21,50 +21,6 @@ import sklearn.model_selection
 import sklearn.preprocessing
 import sklearn.pipeline
 
-##
-# Custom genetic programming functions
-##
-#
-
-##  Setup allowed primitives in the tree
-#
-pset = gp.PrimitiveSet("MAIN", 1)  # '1' is the number of input arguments for the function
-pset.addPrimitive(np.add, 2)
-pset.addPrimitive(np.subtract, 2)
-pset.addPrimitive(np.multiply, 2)
-pset.addPrimitive(np.divide, 2)
-pset.addPrimitive(np.sqrt, 1)
-pset.addPrimitive(np.exp, 1)
-pset.addPrimitive(np.log, 1)
-
-pset.addEphemeralConstant("rand100", functools.partial(random.randint, -100, 100))
-pset.renameArguments(ARG0='x')
-
-##  Setup the toolbox   
-creator.create("FitnessMax", base.Fitness, weights=(1.0,))  # We aim to maximize the fitness
-creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
-toolbox = base.Toolbox()
-
-
-toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
-toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
-toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-toolbox.register("compile", gp.compile, pset=pset)
-toolbox.register("select", tools.selTournament, tournsize=3)
-toolbox.register("mate", gp.cxOnePoint)
-toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
-toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
-
-toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
-toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
-
-
-
-
-
-
-
-
 app = typer.Typer()
 
 # region STRATEGIES
@@ -80,22 +36,6 @@ def _rescale(x: pd.Series, *, lower_bound: float = 0.2) -> pd.Series:
     lowest, highest = np.quantile(x, [0, 1])
     return lower_bound + (1-lower_bound)*(x-lowest)/(highest-lowest)
 
-
-# def _exp_time(x: pd.Series) -> pd.Series:
-#     """Apply y=3*exp(x) and normalize it between (0,1)."""
-#     return np.exp(3*x) / np.exp(3)
-
-
-# def lin(x: pd.Series, lower_bound=.2):
-#     return _rescale(_rescale(x.astype(int)), lower_bound=lower_bound)
-
-
-# def exp(x: pd.Series, lower_bound=.2):
-#     return _rescale(_exp_time(_rescale(x.astype(int))), lower_bound=lower_bound)
-
-
-# def sqrt(x: pd.Series, lower_bound=.2):
-#     return _rescale(np.sqrt(_rescale(x.astype(int))), lower_bound=lower_bound) #type: ignore
 
 def quantile_25(array):
     return np.quantile(array, .25)
@@ -126,6 +66,61 @@ NODEPAIR_STRATEGIES = {
     'min': min
 }
 # endregion
+
+# region 
+
+##
+# Custom genetic programming functions
+##
+#
+def div(left, right):
+    return np.divide(_rescale(left.astype(int)), _rescale(right.astype(int)))
+
+def log(x: np.ndarray):
+    return np.log(_rescale(x.astype(int)))
+
+def exp(x: np.ndarray):
+    return np.exp(_rescale(x.astype(int)))
+
+def sqrt(x: np.ndarray):
+    return np.sqrt(_rescale(x.astype(int)))
+
+##  Setup allowed primitives in the tree
+#
+pset = gp.PrimitiveSet("MAIN", 1)  # '1' is the number of input arguments for the function
+pset.addPrimitive(np.add, 2)
+pset.addPrimitive(np.subtract, 2)
+pset.addPrimitive(np.multiply, 2)
+pset.addPrimitive(div, 2)
+pset.addPrimitive(sqrt, 1)
+pset.addPrimitive(exp, 1)
+pset.addPrimitive(log, 1)
+
+
+pset.addEphemeralConstant("rand100", functools.partial(random.randint, -100, 100))
+pset.renameArguments(ARG0='x')
+
+##  Setup the toolbox   
+creator.create("FitnessMax", base.Fitness, weights=(1.0,))  # We aim to maximize the fitness
+creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
+toolbox = base.Toolbox()
+
+
+toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
+toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
+toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+toolbox.register("compile", gp.compile, pset=pset)
+toolbox.register("select", tools.selTournament, tournsize=3)
+toolbox.register("mate", gp.cxOnePoint)
+toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
+toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.1)
+
+toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
+toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
+
+
+# endregion
+
 
 # region FEATURES
 
@@ -270,9 +265,6 @@ def eval_auc(individual, edgelist_mature, instances, agg_strategies, time_aware_
 
 @app.command()
 def single(network:int, path: str, n_jobs: int = -1, verbose=True):
-
-
-
     edgelist_file = os.path.join(path, 'edgelist.pkl')
     samples_file = os.path.join(path, 'samples.pkl')
     if (not os.path.isdir(path) or
@@ -309,8 +301,8 @@ def single(network:int, path: str, n_jobs: int = -1, verbose=True):
     toolbox.register("evaluate", eval_auc, edgelist_mature=edgelist_mature, instances=instances, agg_strategies=AGGREGATION_STRATEGIES, time_aware_funcs=time_aware_funcs, y=y)
 
     random.seed(42)
-    population_size = 90
-    generations = 10
+    population_size = 200
+    generations = 40
     keep_fittest_n = 10
 
     pop = toolbox.population(n=population_size)

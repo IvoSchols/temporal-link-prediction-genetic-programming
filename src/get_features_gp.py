@@ -256,7 +256,8 @@ def single(path: str, n_jobs: int = -1, verbose=True):
                 )
                 X[f'{func_str}_{agg_str}'] = feature
 
-        X = pd.DataFrame(X)
+        # Replace NaNs with 0 -> not sure if this is the best way to handle this
+        X = pd.DataFrame(X).fillna(0)
 
         X_train, X_test, y_train, y_test = (
         sklearn.model_selection.train_test_split(X, y, random_state=42))
@@ -270,7 +271,7 @@ def single(path: str, n_jobs: int = -1, verbose=True):
         auc = sklearn.metrics.roc_auc_score(
             y_true=y_test, y_score=pipe.predict_proba(X_test)[:,1])
 
-        return auc
+        return (auc,)
 
     toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
     toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)

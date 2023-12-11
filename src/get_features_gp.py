@@ -131,7 +131,7 @@ NODEPAIR_STRATEGIES = {
 
 def aa_time_aware(edgelist_mature, instances,
                   time_strategy, aggregation_strategy):
-    df = edgelist_mature.assign(datetime=lambda x: time_strategy(x['datetime']))
+    df = edgelist_mature.assign(datetime=lambda x: _rescale(time_strategy(x['datetime'], 0.2)))
 
     G = nx.from_pandas_edgelist(df, edge_attr=True, create_using=nx.MultiGraph)
     scores = list()
@@ -148,7 +148,7 @@ def aa_time_aware(edgelist_mature, instances,
 
 def na(edgelist_mature, instances, time_strategy, aggregation_strategy,
        nodepair_strategy):
-    df = edgelist_mature.assign(datetime=lambda x: time_strategy(x['datetime']))
+    df = edgelist_mature.assign(datetime=lambda x: _rescale(time_strategy(x['datetime'],0.2)))
 
     G = nx.from_pandas_edgelist(df, edge_attr=True, create_using=nx.MultiGraph)
     scores = list()
@@ -164,7 +164,7 @@ def na(edgelist_mature, instances, time_strategy, aggregation_strategy,
 
 def cn_time_aware(edgelist_mature, instances, time_strategy,
                   aggregation_strategy):
-    df = edgelist_mature.assign(datetime=lambda x: time_strategy(x['datetime']))
+    df = edgelist_mature.assign(datetime=lambda x: _rescale(time_strategy(x['datetime']),0.2))
 
     G = nx.from_pandas_edgelist(df, create_using=nx.MultiGraph, edge_attr=True)
 
@@ -181,7 +181,7 @@ def cn_time_aware(edgelist_mature, instances, time_strategy,
 
 def jc_time_aware(edgelist_mature, instances, time_strategy,
                   aggregation_strategy):
-    df = edgelist_mature.assign(datetime=lambda x: time_strategy(x['datetime']))
+    df = edgelist_mature.assign(datetime=lambda x: _rescale(time_strategy(x['datetime']),0.2))
 
     G = nx.from_pandas_edgelist(df, create_using=nx.MultiGraph, edge_attr=True)
 
@@ -207,7 +207,7 @@ def jc_time_aware(edgelist_mature, instances, time_strategy,
 
 def pa_time_aware(edgelist_mature, instances, time_strategy,
                   aggregation_strategy):
-    df = edgelist_mature.assign(datetime=lambda x: time_strategy(x['datetime']))
+    df = edgelist_mature.assign(datetime=lambda x: _rescale(time_strategy(x['datetime']),0.2))
 
 
     G = nx.from_pandas_edgelist(df, create_using=nx.MultiGraph, edge_attr=True)
@@ -269,7 +269,7 @@ def eval_auc(individual, edgelist_mature, instances, agg_strategies, time_aware_
 
 
 @app.command()
-def single(path: str, n_jobs: int = -1, verbose=True):
+def single(network:int, path: str, n_jobs: int = -1, verbose=True):
 
 
 
@@ -336,6 +336,10 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     # Print the best individuals
     for individual in hof:
         print("Fitness: ", individual.fitness, ", Individual: ", individual)
+
+    # Write the results to a file corresponding to the network.txt
+    with open(os.path.join(path, f'network_{network}_gp_results.txt'), 'w') as f:
+        f.write(f'Fitness: {individual.fitness}, Individual: {individual}')
 
 
 @app.command()

@@ -32,9 +32,9 @@ def rewire(network, nswap_perc, max_tries=1_000_000_000, seed=42, verbose=False)
 def get_samples(network, nswap_perc, cutoff=2, sample_size=10_000, seed=42, verbose=True):
     src.get_samples.single(network, nswap_perc, cutoff, sample_size, seed, verbose)
 
-def get_features(path, n_jobs=-1, verbose=True):
+def get_features(network, path, n_jobs=-1, verbose=True):
     # src.get_features.single(path, n_jobs, verbose)
-    src.get_features_gp.single(path, n_jobs, verbose)
+    src.get_features_gp.single(network, path, n_jobs, verbose)
 
 def get_performance(network, nswap_perc=None, clf='LogisticRegression', feature_set='II-A', random_state=42, n_jobs=-1):
     return src.get_performance.single(network, nswap_perc, clf, feature_set, random_state, n_jobs)
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     verbose = True
 
     print('Getting features')
-    get_features(f'data/{network:02}/+000/')
+    get_features(network, f'data/{network:02}/+000/')
 
     # # Generate time strategies, using gp, and evaluate their performance. Keep the fittest
     # clf = 'LogisticRegression'

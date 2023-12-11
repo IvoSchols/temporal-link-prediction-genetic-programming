@@ -284,7 +284,6 @@ def single(path: str, n_jobs: int = -1, verbose=True):
                     ('pa', pa_time_aware)]
 
 
-    toolbox.register("evaluate", eval_auc, toolbox=toolbox, edgelist_mature=edgelist_mature, instances=instances, agg_strategies=AGGREGATION_STRATEGIES, time_aware_funcs=time_aware_funcs, y=y)
     
     # Enable multiprocessing for individuals
     # Initialize the multiprocessing pool with 30 workers
@@ -298,6 +297,7 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     edgelist_mature = edgelist_mature[['source', 'target', 'datetime']]
     y = pd.read_pickle(samples_file).astype(int).values
 
+    toolbox.register("evaluate", eval_auc, toolbox=toolbox, edgelist_mature=edgelist_mature, instances=instances, agg_strategies=AGGREGATION_STRATEGIES, time_aware_funcs=time_aware_funcs, y=y)
 
     random.seed(42)
     population_size = 90

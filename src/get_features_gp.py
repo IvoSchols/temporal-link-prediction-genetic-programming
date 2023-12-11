@@ -1,6 +1,7 @@
 import collections
 import functools
 import itertools
+import multiprocessing
 import os
 
 import networkx as nx
@@ -214,10 +215,16 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     pset.addEphemeralConstant("rand100", functools.partial(random.randint, -100, 100))
     pset.renameArguments(ARG0='x')
 
-    ##  Setup the toolbox
+    ##  Setup the toolbox   
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))  # We aim to maximize the fitness
     creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
     toolbox = base.Toolbox()
+
+    # Enable multiprocessing for individuals
+    # Initialize the multiprocessing pool with 30 workers
+    core_count = 30
+    pool = multiprocessing.Pool(core_count)
+    toolbox.register("map", pool.map)
 
 
     # Prepare data
@@ -280,19 +287,33 @@ def single(path: str, n_jobs: int = -1, verbose=True):
   
 
     random.seed(42)
-    pop = toolbox.population(n=3)
-    hof = tools.HallOfFame(1)
+    population_size = 90
+    generations = 10
+    keep_fittest_n = 10
+
+    pop = toolbox.population(n=population_size)
+    hof = tools.HallOfFame(keep_fittest_n)
 
     stats = tools.Statistics(lambda ind: ind.fitness.values)
     stats.register("avg", np.mean)
     stats.register("min", np.min)
     stats.register("max", np.max)
 
-    pop, logbook = algorithms.eaSimple(pop, toolbox, 0.5, 0.2, 40, stats=stats, halloffame=hof, verbose=True)
 
-    print(hof[0])
 
-    print('done')
+    pop, logbook = algorithms.eaSimple(pop, toolbox, cxpb=0.5, mutpb=0.2, ngen=generations, stats=stats, halloffame=hof, verbose=True)
+
+    # Close the multiprocessing pool
+    pool.close()
+    pool.join()
+
+    # Print logbook
+    for record in logbook:
+        print(record)
+
+    # Print the best individuals
+    for individual in hof:
+        print("Fitness: ", individual.fitness, ", Individual: ", individual)
 
 
 @app.command()

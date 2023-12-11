@@ -77,9 +77,7 @@ NODEPAIR_STRATEGIES = {
 
 def aa_time_aware(edgelist_mature, instances,
                   time_strategy, aggregation_strategy):
-    df = edgelist_mature[['source', 'target', 'datetime']].assign(
-        datetime=lambda x: time_strategy(x['datetime'])
-    )
+    df = edgelist_mature.assign(datetime=lambda x: time_strategy(x['datetime']))
 
     G = nx.from_pandas_edgelist(df, edge_attr=True, create_using=nx.MultiGraph)
     scores = list()
@@ -96,9 +94,7 @@ def aa_time_aware(edgelist_mature, instances,
 
 def na(edgelist_mature, instances, time_strategy, aggregation_strategy,
        nodepair_strategy):
-    df = edgelist_mature[['source', 'target', 'datetime']].assign(
-        datetime=lambda x: time_strategy(x['datetime'])
-    )
+    df = edgelist_mature.assign(datetime=lambda x: time_strategy(x['datetime']))
 
     G = nx.from_pandas_edgelist(df, edge_attr=True, create_using=nx.MultiGraph)
     scores = list()
@@ -114,9 +110,7 @@ def na(edgelist_mature, instances, time_strategy, aggregation_strategy,
 
 def cn_time_aware(edgelist_mature, instances, time_strategy,
                   aggregation_strategy):
-    df = edgelist_mature[['source', 'target', 'datetime']].assign(
-        datetime=lambda x: time_strategy(x['datetime'])
-    )
+    df = edgelist_mature.assign(datetime=lambda x: time_strategy(x['datetime']))
 
     G = nx.from_pandas_edgelist(df, create_using=nx.MultiGraph, edge_attr=True)
 
@@ -133,9 +127,7 @@ def cn_time_aware(edgelist_mature, instances, time_strategy,
 
 def jc_time_aware(edgelist_mature, instances, time_strategy,
                   aggregation_strategy):
-    df = edgelist_mature[['source', 'target', 'datetime']].assign(
-        datetime=lambda x: time_strategy(x['datetime'])
-    )
+    df = edgelist_mature.assign(datetime=lambda x: time_strategy(x['datetime']))
 
     G = nx.from_pandas_edgelist(df, create_using=nx.MultiGraph, edge_attr=True)
 
@@ -161,9 +153,7 @@ def jc_time_aware(edgelist_mature, instances, time_strategy,
 
 def pa_time_aware(edgelist_mature, instances, time_strategy,
                   aggregation_strategy):
-    df = edgelist_mature[['source', 'target', 'datetime']].assign(
-        datetime=lambda x: time_strategy(x['datetime'])
-    )
+    df = edgelist_mature.assign(datetime=lambda x: time_strategy(x['datetime']))
 
 
     G = nx.from_pandas_edgelist(df, create_using=nx.MultiGraph, edge_attr=True)
@@ -212,19 +202,15 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     
     ##  Setup allowed primitives in the tree
     #
-    def protectedDiv(left, right):
-        try:
-            return left / right
-        except ZeroDivisionError:
-            return 1
-
     pset = gp.PrimitiveSet("MAIN", 1)  # '1' is the number of input arguments for the function
-    pset.addPrimitive(operator.add, 2)
-    pset.addPrimitive(operator.sub, 2)
-    pset.addPrimitive(operator.mul, 2)
-    pset.addPrimitive(protectedDiv, 2)  # A custom division function to protect against division by zero
-    # pset.addPrimitive(math.cos, 1)
-    # pset.addPrimitive(math.sin, 1)
+    pset.addPrimitive(np.add, 2)
+    pset.addPrimitive(np.subtract, 2)
+    pset.addPrimitive(np.multiply, 2)
+    pset.addPrimitive(np.divide, 2)
+    pset.addPrimitive(np.sqrt, 1)
+    pset.addPrimitive(np.exp, 1)
+    pset.addPrimitive(np.log, 1)
+
     pset.addEphemeralConstant("rand100", functools.partial(random.randint, -100, 100))
     pset.renameArguments(ARG0='x')
 
@@ -233,9 +219,15 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
     toolbox = base.Toolbox()
 
-    # Evaluate the fitness of an individual. This is the function that will be
+
+    # Prepare data
+    # Replace NaNs with 0 -> not sure if this is the best way to handle this
+    edgelist_mature = edgelist_mature[['source', 'target', 'datetime']]
     y = pd.read_pickle(samples_file).astype(int).values
 
+
+   
+    # Evaluate the fitness of an individual. This is the function that will be
     def eval_auc(individual):      
         # NA -> only interested in II-A so skip
 
@@ -248,6 +240,7 @@ def single(path: str, n_jobs: int = -1, verbose=True):
         # Store scores in array
         X = {}
 
+        
         for agg_str, agg_func in AGGREGATION_STRATEGIES.items():
             for func_str, func in time_aware_funcs:
                 feature = calculate_feature(
@@ -256,11 +249,9 @@ def single(path: str, n_jobs: int = -1, verbose=True):
                 )
                 X[f'{func_str}_{agg_str}'] = feature
 
-        # Replace NaNs with 0 -> not sure if this is the best way to handle this
         X = pd.DataFrame(X).fillna(0)
+        X_train, X_test, y_train, y_test = (sklearn.model_selection.train_test_split(X, y, random_state=42))
 
-        X_train, X_test, y_train, y_test = (
-        sklearn.model_selection.train_test_split(X, y, random_state=42))
    
         pipe = sklearn.pipeline.make_pipeline(
             sklearn.preprocessing.StandardScaler(),
@@ -289,7 +280,7 @@ def single(path: str, n_jobs: int = -1, verbose=True):
   
 
     random.seed(42)
-    pop = toolbox.population(n=300)
+    pop = toolbox.population(n=3)
     hof = tools.HallOfFame(1)
 
     stats = tools.Statistics(lambda ind: ind.fitness.values)
@@ -297,7 +288,9 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     stats.register("min", np.min)
     stats.register("max", np.max)
 
-    algorithms.eaSimple(pop, toolbox, 0.5, 0.2, 40, stats=stats, halloffame=hof, verbose=True)
+    pop, logbook = algorithms.eaSimple(pop, toolbox, 0.5, 0.2, 40, stats=stats, halloffame=hof, verbose=True)
+
+    print(hof[0])
 
     print('done')
 

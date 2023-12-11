@@ -223,7 +223,7 @@ def time_func_helper(compiled_func, x):
 
 
 # Evaluate the fitness of an individual. This is the function that will be
-def eval_auc(individual, toolbox, edgelist_mature, instances, agg_strategies, time_aware_funcs, y):      
+def eval_auc(individual, edgelist_mature, instances, agg_strategies, time_aware_funcs, y):      
     # NA -> only interested in II-A so skip
 
 
@@ -297,7 +297,7 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     edgelist_mature = edgelist_mature[['source', 'target', 'datetime']]
     y = pd.read_pickle(samples_file).astype(int).values
 
-    toolbox.register("evaluate", eval_auc, toolbox=toolbox, edgelist_mature=edgelist_mature, instances=instances, agg_strategies=AGGREGATION_STRATEGIES, time_aware_funcs=time_aware_funcs, y=y)
+    toolbox.register("evaluate", eval_auc, edgelist_mature=edgelist_mature, instances=instances, agg_strategies=AGGREGATION_STRATEGIES, time_aware_funcs=time_aware_funcs, y=y)
 
     random.seed(42)
     population_size = 90

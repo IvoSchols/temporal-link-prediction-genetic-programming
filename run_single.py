@@ -8,8 +8,6 @@ import sklearn.metrics
 import sklearn.model_selection
 import sklearn.preprocessing
 import sklearn.pipeline
-from gplearn.fitness import make_fitness
-from gplearn.genetic import SymbolicRegressor
 
 ##
 # Helper function copied from get_features

@@ -233,22 +233,25 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     y = pd.read_pickle(samples_file).astype(int).values
 
 
+    def time_func_helper(compiled_func, x):
+        return compiled_func(_rescale(x.astype(int)))
+
    
     # Evaluate the fitness of an individual. This is the function that will be
-    def eval_auc(individual):      
+    def eval_auc(individual, agg_strategies, time_aware_funcs):      
         # NA -> only interested in II-A so skip
 
 
         # Time aware functions
         compiled_time_func = toolbox.compile(expr=individual)
         # Wrap time_func in _rescale(x.astype(int))
-        time_func = lambda x: compiled_time_func(_rescale(x.astype(int)))
+        time_func = functools.partial(time_func_helper, compiled_time_func)
         
         # Store scores in array
         X = {}
 
         
-        for agg_str, agg_func in AGGREGATION_STRATEGIES.items():
+        for agg_str, agg_func in agg_strategies.items():
             for func_str, func in time_aware_funcs:
                 feature = calculate_feature(
                     func, edgelist_mature=edgelist_mature, instances=instances,
@@ -275,7 +278,7 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("compile", gp.compile, pset=pset)
-    toolbox.register("evaluate", eval_auc)
+    toolbox.register("evaluate", eval_auc, agg_strategies=AGGREGATION_STRATEGIES, time_aware_funcs=time_aware_funcs)
     toolbox.register("select", tools.selTournament, tournsize=3)
     toolbox.register("mate", gp.cxOnePoint)
     toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)

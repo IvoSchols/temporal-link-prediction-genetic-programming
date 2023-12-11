@@ -97,11 +97,17 @@ def _rescale(x: pd.Series, *, lower_bound: float = 0.2) -> pd.Series:
 # def sqrt(x: pd.Series, lower_bound=.2):
 #     return _rescale(np.sqrt(_rescale(x.astype(int))), lower_bound=lower_bound) #type: ignore
 
+def quantile_25(array):
+    return np.quantile(array, .25)
+
+def quantile_75(array):
+    return np.quantile(array, .75)
+
 AGGREGATION_STRATEGIES = {
     'q0': np.min,
-    'q25': lambda array: np.quantile(array, .25),
+    'q25': quantile_25,
     'q50': np.median,
-    'q75': lambda array: np.quantile(array, .75),
+    'q75': quantile_75,
     'q100': np.max,
     'm0': np.sum,
     'm1': np.mean,
@@ -110,9 +116,12 @@ AGGREGATION_STRATEGIES = {
     'm4': scipy.stats.kurtosis
 }
 
+def difference(x):
+    return x[1] - x[0]
+
 NODEPAIR_STRATEGIES = {
     'sum': sum, 
-    'diff': lambda x: x[1]-x[0],
+    'diff': difference,
     'max': max, 
     'min': min
 }

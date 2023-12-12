@@ -113,7 +113,7 @@ toolbox.register("compile", gp.compile, pset=pset)
 toolbox.register("select", tools.selTournament, tournsize=3)
 toolbox.register("mate", gp.cxOnePoint)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
-toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.1)
+toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
 
 toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
@@ -288,7 +288,7 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     
     # Enable multiprocessing for individuals
     # Initialize the multiprocessing pool with 30 workers
-    core_count = 30
+    core_count = 32
     pool = multiprocessing.Pool(core_count)
     toolbox.register("map", pool.map)
 
@@ -301,7 +301,7 @@ def single(path: str, n_jobs: int = -1, verbose=True):
     toolbox.register("evaluate", eval_auc, edgelist_mature=edgelist_mature, instances=instances, agg_strategies=AGGREGATION_STRATEGIES, time_aware_funcs=time_aware_funcs, y=y)
 
     random.seed(42)
-    population_size = 200
+    population_size = 300
     generations = 40
     keep_fittest_n = 10
 

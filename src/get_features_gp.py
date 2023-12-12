@@ -264,7 +264,7 @@ def eval_auc(individual, edgelist_mature, instances, agg_strategies, time_aware_
 
 
 @app.command()
-def single(network:int, path: str, n_jobs: int = -1, verbose=True):
+def single(path: str, n_jobs: int = -1, verbose=True):
     edgelist_file = os.path.join(path, 'edgelist.pkl')
     samples_file = os.path.join(path, 'samples.pkl')
     if (not os.path.isdir(path) or
@@ -330,8 +330,11 @@ def single(network:int, path: str, n_jobs: int = -1, verbose=True):
         print("Fitness: ", individual.fitness, ", Individual: ", individual)
 
     # Write the results to a file corresponding to the network.txt
-    with open(os.path.join(path, f'network_{network}_gp_results.txt'), 'w') as f:
-        f.write(f'Fitness: {individual.fitness}, Individual: {individual}')
+    with open(os.path.join(path, f'gp_results.txt'), 'w') as f:
+        for record in logbook:
+            f.write(f'{record}\n')
+        for individual in hof:
+            f.write(f'Fitness: {individual.fitness}, Individual: {individual}')
 
 
 @app.command()

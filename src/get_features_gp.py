@@ -74,16 +74,16 @@ NODEPAIR_STRATEGIES = {
 ##
 #
 def div(left, right):
-    return np.divide(_rescale(left.astype(int)), _rescale(right.astype(int)))
+    return np.divide(_rescale(left), _rescale(right))
 
 def log(x: np.ndarray):
-    return np.log(_rescale(x.astype(int)))
+    return np.log(_rescale(x))
 
 def exp(x: np.ndarray):
-    return np.exp(_rescale(x.astype(int)))
+    return np.exp(_rescale(x))
 
 def sqrt(x: np.ndarray):
-    return np.sqrt(_rescale(x.astype(int)))
+    return np.sqrt(_rescale(x))
 
 ##  Setup allowed primitives in the tree
 #
